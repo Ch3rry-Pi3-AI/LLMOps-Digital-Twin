@@ -1,84 +1,191 @@
-# 🧠 **Backend API — Branch Overview**
+# 💻 **Frontend Interface — Branch Overview**
 
-This branch introduces the backend layer for the **llmops-digital-twin** project. The focus is on creating the initial FastAPI service, defining configuration files, setting up the Digital Twin personality file, and preparing a clean API endpoint that the frontend will communicate with. Memory is not implemented at this stage and will be added in a later branch.
+This branch adds the frontend interface for the **llmops-digital-twin** project. The focus is on building a chat UI for the Digital Twin, wiring it into the main page, and updating the Tailwind CSS v4 configuration so everything renders correctly in the browser.
 
-## Part 1: Create the Backend Files
+## Part 1: Create the Twin Chat Component
 
-### Step 1: Create the Requirements File
+### Step 1: Implement `Twin` in `frontend/components/twin.tsx`
 
-Create `backend/requirements.txt`:
+Create a new file:
 
-```
-fastapi
-uvicorn
-openai
-python-dotenv
-python-multipart
-```
+`frontend/components/twin.tsx`
 
-These dependencies allow the backend to run a FastAPI server, load environment variables, interact with OpenAI models, and handle incoming requests from the frontend.
+This component:
 
-### Step 2: Add Environment Configuration
+* Manages the conversation state (`messages`) between the user and the assistant
+* Sends user input to the backend `http://localhost:8000/chat`
+* Displays responses from the Digital Twin
+* Shows a loading/typing indicator while waiting for the backend
+* Maintains a `sessionId` so that future branches can add memory support
 
-Create `backend/.env`:
+Key elements of the component:
 
-```
-OPENAI_API_KEY=your_openai_api_key_here
-CORS_ORIGINS=http://localhost:3000
-```
+```tsx
+'use client';
 
-Replace `your_openai_api_key_here` with your real API key.
+import { useState, useRef, useEffect } from 'react';
+import { Send, Bot, User } from 'lucide-react';
 
-This file stores sensitive configuration values and should not be committed to Git. To protect it, ensure the project root contains a `.gitignore` file with:
+interface Message {
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: Date;
+}
 
-```
-.env
-```
+export default function Twin() {
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [input, setInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [sessionId, setSessionId] = useState<string>('');
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
-This keeps your secrets safe while working across branches.
-
-### Step 3: Add the Digital Twin Personality File
-
-Create `backend/me.txt` with a description of who your Digital Twin represents.
-
-This file acts as the system prompt. Its contents shape how the model responds on your behalf. Every chat request loads this personality text and uses it to generate replies that reflect your tone, background, and expertise.
-
-Example structure:
-
-```
-You are a chatbot acting as a "Digital Twin", representing Roger J. Campbell...
-
-(your personality content here)
+    // scrollToBottom + useEffect to keep latest message in view
+    // sendMessage() posts to the FastAPI /chat endpoint
+    // handleKeyPress() sends on Enter (without Shift)
+    // JSX: header, message list, loading dots, and input bar
+}
 ```
 
-The final version is customised to your educational background, AI/ML consulting work, interests, and tone.
+The full implementation includes:
 
-### Step 4: Build the FastAPI Server
+* A header with a `Bot` icon and title “AI Digital Twin”
+* Empty-state prompt when no messages are present
+* Distinct styling for user vs assistant messages
+* A three-dot bounce animation to indicate loading
+* An input bar with Enter-to-send and a `Send` icon button
 
-Create `backend/server.py` containing the backend API logic.
+## Part 2: Install UI Dependencies
 
-This file:
+### Step 2: Add `lucide-react` for Icons
 
-* Loads environment variables
-* Configures CORS for safe communication with the frontend
-* Loads the Digital Twin personality from `me.txt`
-* Defines request and response models
-* Provides `/`, `/health`, and `/chat` endpoints
-* Sends user messages to OpenAI and returns the model’s response
+From inside the `frontend` directory:
 
-The `/chat` endpoint currently **does not include memory**. Each request is processed independently. A session ID is generated so that memory can be added seamlessly in a later branch.
-
-## Part 2: Backend Structure After This Branch
-
-Your backend now looks like:
-
+```bash
+cd frontend
+npm install lucide-react
+cd ..
 ```
+
+The `Twin` component uses:
+
+* `Bot` — assistant avatar
+* `User` — user avatar
+* `Send` — send button icon
+
+These icons help make the interface more readable and visually clear.
+
+## Part 3: Wire the Twin into the Main Page
+
+### Step 3: Update `frontend/app/page.tsx`
+
+Replace the contents of `frontend/app/page.tsx` with a layout that hosts the chat UI:
+
+```tsx
+import Twin from '@/components/twin';
+
+export default function Home() {
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-4xl font-bold text-center text-gray-800 mb-2">
+            AI in Production
+          </h1>
+          <p className="text-center text-gray-600 mb-8">
+            Deploy your Digital Twin to the cloud
+          </p>
+
+          <div className="h-[600px]">
+            <Twin />
+          </div>
+
+          <footer className="mt-8 text-center text-sm text-gray-500">
+            <p>Week 2: Building Your Digital Twin</p>
+          </footer>
+        </div>
+      </div>
+    </main>
+  );
+}
+```
+
+This page:
+
+* Provides the main heading and subheading
+* Centres the content in a constrained width container
+* Allocates a fixed height area for the chat UI
+* Displays a simple footer describing the current week/module
+
+## Part 4: Tailwind v4 and Global Styling
+
+### Step 4: Configure PostCSS for Tailwind v4
+
+Update `frontend/postcss.config.mjs`:
+
+```js
+export default {
+    plugins: {
+        '@tailwindcss/postcss': {},
+    },
+}
+```
+
+This ensures Tailwind v4 is processed correctly via PostCSS in the Next.js 15.5 setup.
+
+### Step 5: Update Global Styles
+
+Replace the contents of `frontend/app/globals.css`:
+
+```css
+@import 'tailwindcss';
+
+/* Smooth scrolling animation keyframe */
+@keyframes bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 1.4s infinite;
+}
+
+.delay-100 {
+  animation-delay: 0.1s;
+}
+
+.delay-200 {
+  animation-delay: 0.2s;
+}
+```
+
+These global styles:
+
+* Import Tailwind’s layers
+* Define the `bounce` animation used for the chat loading dots
+* Provide utility classes for delay offsets (`delay-100`, `delay-200`)
+
+## Frontend Structure After This Branch
+
+After completing this branch, the key frontend files for the Digital Twin interface are:
+
+```text
 llmops-digital-twin/
-├── backend/
-│   ├── .env
-│   ├── me.txt
-│   ├── requirements.txt
-│   └── server.py
+├── frontend/
+│   📁 app/
+│   │   ├── page.tsx        # Main page hosting the Twin component
+│   │   └── globals.css     # Tailwind v4 import + custom animations
+│   📁 components/
+│   │   └── twin.tsx        # Chat UI that talks to the FastAPI backend
+│   └── postcss.config.mjs  # Tailwind v4 PostCSS configuration
+└── backend/
+    └── ...                 # Existing FastAPI Digital Twin API
 ```
 
-This backend is now prepared to receive messages from the frontend and respond as your Digital Twin. Memory, retrieval, history tracking, and advanced features will be built in upcoming branches.
+The frontend is now fully connected to the backend and ready for deployment in later branches.
