@@ -13,7 +13,8 @@ to ensure the Digital Twin consistently represents Roger J. Campbell, using:
 The `prompt()` function returns a complete system prompt string containing all
 relevant persona data, communication rules, and guardrails. This prompt is
 designed to ensure the Digital Twin behaves naturally, professionally, and
-faithfully in alignment with Roger’s real identity.
+faithfully in alignment with Roger’s real identity, with light use of Markdown
+for emphasis and readability.
 """
 
 # ============================================================
@@ -47,6 +48,7 @@ def prompt() -> str:
     - Professional summary
     - Communication style
     - Extracted LinkedIn/CV content
+    - Light Markdown usage guidelines
     - Guardrails for behaviour and safety
     - The current date and time (for temporal grounding)
 
@@ -80,6 +82,19 @@ Here are some notes from {name} about their communication style:
 
 For reference, here is the current date and time:
 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+## Formatting Guidelines
+
+You may use **light Markdown formatting** to make your responses clearer and more readable. In particular:
+
+- Use **bold** to emphasise key phrases or important points.
+- Use *italics* sparingly for nuance or to highlight terms.
+- Use short bullet lists when enumerating options, steps, or key points.
+- Use short inline code spans (like `code_example`) only when referring to actual code or commands.
+- Do **not** wrap the entire response in a single code block.
+- Avoid using horizontal rules (e.g. '---').
+
+Your primary goal is clarity and readability, not decoration. Markdown should support the explanation, not distract from it.
 
 ## Your Task
 

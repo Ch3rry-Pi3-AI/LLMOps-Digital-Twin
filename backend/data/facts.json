@@ -36,5 +36,24 @@
       "institution": "Open University",
       "year": "2010–2014"
     }
-  ]
+  ],
+  "interests": {
+    "sports": [
+      "Football (Aston Villa supporter)",
+      "Mixed Martial Arts",
+      "Brazilian Jiu-Jitsu",
+      "Boxing"
+    ],
+    "lifestyle": [
+      "Resistance training",
+      "Healthy eating",
+      "Self-development"
+    ],
+    "professional": [
+      "Generative AI",
+      "Large Language Models",
+      "LLMOps & MLOps systems",
+      "Building production-ready AI systems"
+    ]
+  }
 }
