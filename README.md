@@ -2,7 +2,7 @@
 
 This branch upgrades the **llmops-digital-twin** backend to support **persistent conversational memory**. Your Digital Twin can now recall previous messages within a session, enabling natural, context-aware dialogue. Memory is stored as JSON files in the `/memory` directory, allowing each session to maintain its own conversation history.
 
-## part 1: update the backend with memory support
+## Part 1: update the backend with memory support
 
 ### Step 1: Replace `server.py` with the memory-enabled version
 
@@ -19,7 +19,7 @@ Replace your existing `backend/server.py` with the new memory-enabled version pr
 
 This update allows your Digital Twin to remember user-provided details (such as their name, preferences, or project details) across multiple messages within the same session.
 
-## part 2: restart the backend server
+## Part 2: restart the backend server
 
 After replacing `server.py`, restart the backend:
 
@@ -36,7 +36,7 @@ http://127.0.0.1:8000
 
 The backend is now ready to support full memory-based conversations.
 
-## part 3: test memory persistence in your Digital Twin
+## Part 3: test memory persistence in your Digital Twin
 
 ### Step 1: Open the app
 
