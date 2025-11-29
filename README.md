@@ -1,4 +1,4 @@
-# 🚀 **AWS Environment Setup — Branch Overview**
+# 🛠️ **AWS Environment Setup — Branch Overview**
 
 This branch prepares the **initial AWS environment** required for deploying the **llmops-digital-twin** backend and its future serverless components (Lambda, API Gateway, S3, CloudFront, DynamoDB).
 The focus is on configuring AWS credentials, creating the correct IAM user/group structure, and ensuring your project root contains the environment variables needed for deployment.
