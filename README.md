@@ -1,92 +1,267 @@
-# 🛠️ **AWS Environment Setup — Branch Overview**
+# ⚙️ AWS Lambda Packaging & Deployment
 
-This branch prepares the **initial AWS environment** required for deploying the **llmops-digital-twin** backend and its future serverless components (Lambda, API Gateway, S3, CloudFront, DynamoDB).
-The focus is on configuring AWS credentials, creating the correct IAM user/group structure, and ensuring your project root contains the environment variables needed for deployment.
+## Package Lambda Function
+
+### Step 1: Create Deployment Script
+
+Create `backend/deploy.py`:
+
+```python
+import os
+import shutil
+import zipfile
+import subprocess
 
 
+def main():
+    print("Creating Lambda deployment package...")
 
-## Part 1: Project Environment Configuration
+    # Clean up
+    if os.path.exists("lambda-package"):
+        shutil.rmtree("lambda-package")
+    if os.path.exists("lambda-deployment.zip"):
+        os.remove("lambda-deployment.zip")
 
-### **Step 1: Create a `.env` File in the Project Root**
+    # Create package directory
+    os.makedirs("lambda-package")
 
-Inside the root of your project (`twin/.env`), create the following file:
+    # Install dependencies using Docker with Lambda runtime image
+    print("Installing dependencies for Lambda runtime...")
 
-```bash
-# AWS Configuration
-AWS_ACCOUNT_ID=your_aws_account_id
-DEFAULT_AWS_REGION=us-east-1
+    # Use the official AWS Lambda Python 3.12 image
+    # This ensures compatibility with Lambda's runtime environment
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{os.getcwd()}:/var/task",
+            "--platform",
+            "linux/amd64",  # Force x86_64 architecture
+            "--entrypoint",
+            "",  # Override the default entrypoint
+            "public.ecr.aws/lambda/python:3.12",
+            "/bin/sh",
+            "-c",
+            "pip install --target /var/task/lambda-package -r /var/task/requirements.txt --platform manylinux2014_x86_64 --only-binary=:all: --upgrade",
+        ],
+        check=True,
+    )
 
-# OpenAI Configuration
-OPENAI_API_KEY=your_openai_api_key
+    # Copy application files
+    print("Copying application files...")
+    for file in ["server.py", "lambda_handler.py", "context.py", "resources.py"]:
+        if os.path.exists(file):
+            shutil.copy2(file, "lambda-package/")
+    
+    # Copy data directory
+    if os.path.exists("data"):
+        shutil.copytree("data", "lambda-package/data")
 
-# Project Configuration
-PROJECT_NAME=twin
+    # Create zip
+    print("Creating zip file...")
+    with zipfile.ZipFile("lambda-deployment.zip", "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk("lambda-package"):
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, "lambda-package")
+                zipf.write(file_path, arcname)
+
+    # Show package size
+    size_mb = os.path.getsize("lambda-deployment.zip") / (1024 * 1024)
+    print(f"✓ Created lambda-deployment.zip ({size_mb:.2f} MB)")
+
+
+if __name__ == "__main__":
+    main()
 ```
 
-Replace:
+### Step 2: Update .gitignore
 
-* **your_aws_account_id** → your *12-digit* AWS account number
-* **your_openai_api_key** → your actual OpenAI API key
+Add to your `.gitignore`:
 
-This `.env` file will later be used by deployment scripts and AWS CLI for building Lambda packages and configuring infrastructure.
+```
+lambda-deployment.zip
+lambda-package/
+```
 
+### Step 3: Build the Lambda Package
 
+Make sure Docker Desktop is running, then:
 
-## Part 2: Configure AWS Console Access
+```bash
+cd backend
+uv run deploy.py
+```
 
-### **Step 2: Sign In to the AWS Console**
+This creates `lambda-deployment.zip` containing your Lambda function and all dependencies.
 
-1. Visit **aws.amazon.com**
-2. Sign in as **root user**
-   (This is only needed for initial setup—afterwards you will switch to IAM user-only access.)
+If successful, you will see output similar to:
 
+```
+[notice] A new release of pip is available: 25.0.1 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+📄 Copying backend source files...
+   • Copied server.py
+   • Copied lambda_handler.py
+   • Copied context.py
+   • Copied resources.py
+📂 Copied data/ folder
+📦 Creating zip file...
+✅ Created lambda-deployment.zip (25.28 MB)
+```
 
+## Deploy Lambda Function
 
-## Part 3: Create IAM Group and Permissions
+### Step 1: Create Lambda Function
 
-### **Step 3: Create the IAM User Group**
+1. In AWS Console, search for **Lambda**
+2. Click **Create function**
+3. Choose **Author from scratch**
+4. Configuration:
 
-1. In the AWS Console, go to **IAM**
-2. Navigate to **User groups**
-3. Select **Create group**
-4. Name it: **TwinAccess**
-5. Attach the following AWS managed policies:
+   * Function name: `twin-api`
+   * Runtime: **Python 3.12**
+   * Architecture: **x86_64**
+5. Click **Create function**
 
-| Policy                          | Purpose                                             |
-| ------------------------------- | --------------------------------------------------- |
-| `AWSLambda_FullAccess`          | Deploy & manage Lambda functions                    |
-| `AmazonS3FullAccess`            | S3 buckets + object storage for memory or artifacts |
-| `AmazonAPIGatewayAdministrator` | Create & manage REST APIs for your Lambda           |
-| `CloudFrontFullAccess`          | Prepare for optional frontend CDN deployment        |
-| `IAMReadOnlyAccess`             | Allows viewing roles required by other services     |
-| `AmazonDynamoDBFullAccess_v2`   | Required for Day 4 enhancements                     |
+### Step 2: Upload Your Code
 
-6. Click **Create group**
+**Option A: Direct Upload (for fast connections)**
 
-This group now contains all permissions the Digital Twin project will require across upcoming branches.
+1. In the Lambda function page, under **Code source**
 
+<img src="img/aws_lambda/upload_zip.png" width="100%">
 
-## Part 4: Add IAM User to the Group
+2. Click **Upload from** → **.zip file**
+3. Select `backend/lambda-deployment.zip`
+4. Click **Save**
 
-### **Step 4: Add Your Existing IAM User**
+**Option B: Upload via S3 (recommended for files >10MB or slow connections)**
 
-1. In **IAM → Users**, select your Week 1 user: **`aiengineer`**
-2. Click **Add to groups**
-3. Select the `TwinAccess` group
-4. Confirm by clicking **Add to groups**
+1. Create a temporary S3 bucket:
 
-Your IAM user now has all needed permissions for serverless deployment.
+**Mac/Linux:**
 
+```bash
+DEPLOY_BUCKET="twin-deploy-$(date +%s)"
+aws s3 mb s3://$DEPLOY_BUCKET
+aws s3 cp backend/lambda-deployment.zip s3://$DEPLOY_BUCKET/
+echo "S3 URI: s3://$DEPLOY_BUCKET/lambda-deployment.zip"
+```
 
+**Windows (PowerShell):**
 
-## Part 5: Switch to IAM-Only Sign-In
+```powershell
+$timestamp = Get-Date -Format "yyyyMMddHHmmss"
+$deployBucket = "twin-deploy-$timestamp"
+aws s3 mb s3://$deployBucket
+aws s3 cp backend/lambda-deployment.zip s3://$deployBucket/
+Write-Host "S3 URI: s3://$deployBucket/lambda-deployment.zip"
+```
 
-### **Step 5: Sign In as IAM User**
+2. In the Lambda function page, under **Code source**
 
-1. Log out of the root account
-2. Sign in again, this time as:
+3. Click **Upload from** → **Amazon S3 location**
 
-* **Username:** `aiengineer`
-* **Password:** (your IAM user password)
+4. Enter your S3 URI
 
-From this point forward, *all AWS project work should be done under the IAM user*, keeping your root credentials secure.
+5. Click **Save**
+
+6. Cleanup:
+
+**Mac/Linux:**
+
+```bash
+aws s3 rm s3://$DEPLOY_BUCKET/lambda-deployment.zip
+aws s3 rb s3://$DEPLOY_BUCKET
+```
+
+**Windows (PowerShell):**
+
+```powershell
+aws s3 rm s3://$deployBucket/lambda-deployment.zip
+aws s3 rb s3://$deployBucket
+```
+
+### Step 3: Configure Handler
+
+1. In **Runtime settings**, click **Edit**
+
+<img src="img/aws_lambda/runtime_settings_section.png" width="100%">
+
+2. Set Handler to: `lambda_handler.handler`
+3. Click **Save**
+
+After upload, you will see files in your Lambda code panel:
+
+<img src="img/aws_lambda/code_source.png" width="100%">
+
+### Step 4: Configure Environment Variables
+
+1. Go to **Configuration** → **Environment variables**
+2. Click **Edit** → **Add environment variable**
+3. Add:
+
+   * `OPENAI_API_KEY` = your_api_key
+   * `CORS_ORIGINS` = `*`
+   * `USE_S3` = `true`
+   * `S3_BUCKET` = `twin-memory`
+4. Save
+
+### Step 5: Increase Timeout
+
+1. Go to **Configuration** → **General configuration**
+2. Click **Edit**
+3. Set Timeout to **30 seconds**
+4. Save
+
+### Step 6: Test the Lambda Function
+
+1. Go to **Test**
+2. Create new test event:
+
+   * Template: **API Gateway AWS Proxy**
+   * Event name: `HealthCheck`
+3. Replace JSON with:
+
+```json
+{
+  "version": "2.0",
+  "routeKey": "GET /health",
+  "rawPath": "/health",
+  "headers": {
+    "accept": "application/json",
+    "content-type": "application/json",
+    "user-agent": "test-invoke"
+  },
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/health",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "test-invoke"
+    },
+    "routeKey": "GET /health",
+    "stage": "$default"
+  },
+  "isBase64Encoded": false
+}
+```
+
+4. Click **Save** → **Test**
+
+You should see:
+
+<img src="img/aws_lambda/test.png" width="100%">
+
+A successful response body:
+
+```
+{"status":"healthy","use_s3":true}
+```
+
+**Note:**
+The `sourceIp` and `userAgent` fields are required by Mangum for request handling.
