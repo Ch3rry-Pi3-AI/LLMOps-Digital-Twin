@@ -1,386 +1,210 @@
-# 🤖 Transition Your Digital Twin to AWS Bedrock
+# 🤖 **LLMOps Digital Twin — Main Project Overview**
 
-This branch covers **migrating your Digital Twin backend from OpenAI to AWS Bedrock**, updating **IAM permissions**, **backend code**, and **Lambda configuration**, then **testing and monitoring** your Bedrock-powered deployment end to end.
+The **LLMOps Digital Twin** is a full end-to-end AI system designed to create a persistent, context-aware, personality-driven digital representation of yourself.
 
-Everything below follows your usual style: clear steps, inline code blocks, and image placement exactly where referenced, with **no horizontal rule lines**.
+The Digital Twin:
 
-## Part 1: Configure IAM Permissions
+* Holds long-term **memory** across sessions
+* Behaves according to your **communication style** and **structured personal facts**
+* Is powered by **AWS Bedrock** models
+* Runs on a production-ready **FastAPI backend**
+* Serves a lightweight, responsive **frontend interface**
+* Stores persistent memory using **S3**
+* Deploys serverlessly using **AWS Lambda** + **API Gateway** + **CloudFront**
 
-### Step 1: Sign In as Root User
+This project demonstrates modern LLMOps principles:
 
-Because we are modifying IAM permissions, start from the root account:
+* Context engineering
+* Memory persistence
+* Full AWS serverless deployment
+* Model abstraction and transition management (OpenAI → Bedrock)
+* Clean backend architecture
+* Secure environment variable and IAM management
+* Production-ready CI-style packaging
 
-1. Go to the AWS homepage: [https://aws.amazon.com](https://aws.amazon.com)
-2. Sign in using your **root user** credentials
+It is a complete, cloud-deployed Digital Twin system.
 
-### Step 2: Add Bedrock and CloudWatch Permissions to User Group
+## 🎥 **Digital Twin Demo**
 
-1. In the AWS Console, search for **IAM**
-2. In the left sidebar, click **User groups**
-3. Click on **TwinAccess** (the group created on Day 2)
-4. Open the **Permissions** tab → click **Add permissions** → **Attach policies**
-5. Search for and select these policies:
+<div align="center">
+  <img src="img/demo/twin_demo.gif" width="100%" alt="Digital Twin Demo">
+</div>
 
-   * `AmazonBedrockFullAccess` – allows access to Bedrock AI services
-   * `CloudWatchFullAccess` – allows creating dashboards and viewing metrics
-6. Click **Attach policies**
+## 🧩 **Grouped Stages**
 
-Your `TwinAccess` group should now have:
+Your project contained **12 sequential stages**, several of which naturally cluster together.
+Below is a clean, intuitive, 3-column grouped table in the exact style you prefer:
 
-* `AWSLambda_FullAccess`
-* `AmazonS3FullAccess`
-* `AmazonAPIGatewayAdministrator`
-* `CloudFrontFullAccess`
-* `IAMReadOnlyAccess`
-* **`AmazonBedrockFullAccess` (new!)**
-* **`CloudWatchFullAccess` (new!)**
-* **`AmazonDynamoDBFullAccess` (VERY new!)**
+| Stage Group | Category                      | Description                                                                                                                  |
+| :---------: | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+|    **00**   | Project Setup                 | Repository creation, initial folder structure, environment prep, base configuration                                          |
+|  **01–05**  | Core Digital Twin Development | Backend API, frontend UI, early testing without memory, adding persistent memory, context engineering                        |
+|  **06–11**  | AWS Cloud Deployment          | AWS account setup, Lambda packaging, S3 buckets for memory, API Gateway configuration, frontend deployment, CloudFront setup |
+|    **12**   | Model Transition to Bedrock   | Full migration from OpenAI models to AWS Bedrock, including IAM permissions, environment updates, and backend overhauls      |
 
-That last one was a catch by student **Andy C** – without `AmazonDynamoDBFullAccess`, you may hit a permissions error in Day 5.
+This table reflects the natural lifecycle of your system:
+local development → memory + persona → AWS infrastructure → final Bedrock transition.
 
-### Step 3: Sign Back In as IAM User
+## 🗂️ **Project Structure**
 
-1. Sign out of the root account
-2. Sign back in as your IAM user, for example `aiengineer`, with the IAM credentials
-
-## Part 2: Update Your Code for Bedrock
-
-### Step 1: Update Requirements
-
-Update `twin/backend/requirements.txt` and remove the `openai` package, since it is no longer used:
-
-```text
-fastapi
-uvicorn
-python-dotenv
-python-multipart
-boto3
-pypdf
-mangum
+```
+LLMOps-Digital-Twin/
+├── backend/
+│   ├── server.py
+│   ├── lambda_handler.py
+│   ├── context.py
+│   ├── resources.py
+│   ├── deploy.py
+│   ├── data/
+│   │   ├── facts.json
+│   │   ├── summary.txt
+│   │   ├── style.txt
+│   │   └── LinkedIn.pdf
+│   ├── requirements.txt
+│   └── README.md
+├── frontend/
+│   ├── app/
+│   │   └── page.tsx
+│   ├── components/
+│   │   └── twin.tsx
+│   ├── node_modules/
+│   ├── out/
+│   ├── public/
+│   ├── .gitignore
+│   ├── eslint.config.mjs
+│   ├── next-env.d.ts
+│   ├── next.config.ts
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── postcss.config.mjs
+│   ├── README.md
+│   └── tsconfig.json
+├── img/
+│   └── demo/
+│       └── twin_demo.gif
+├── .env
+├── .gitignore
+└── README.md
 ```
 
-Note: `openai` has been removed from the requirements.
+## 🧠 **Key Architectural Components**
 
-### Step 2: Update the Server Code
+### 🐍 FastAPI Backend (server.py)
 
-Replace your existing `twin/backend/server.py` with the new **Bedrock-powered** version you just implemented.
+* Acts as the Digital Twin’s central intelligence
+* Provides chat, memory, and health endpoints
+* Integrates with **AWS Bedrock** for inference
+* Handles conversation sessions
+* Performs memory reads/writes (local or S3)
+* Built with clean Pydantic models
+* Robust error handling for Bedrock
 
-#### Key Changes Explained
+### 🧠 Context Engineering (`context.py`)
 
-1. **Removed OpenAI import**
+* Loads structured personal information
+* Generates a unified behavioural profile
+* Encodes tone, personality, goals, identity, and guardrails
+* Entirely replaces prompt engineering with **rich context construction**
 
-   * No more `from openai import OpenAI`
+### 🗄️ Persistent Memory System (local or S3)
 
-2. **Added Bedrock client**
+* Memory saved as JSON per session
+* S3-backed memory enables:
 
-   * Uses `boto3.client("bedrock-runtime", ...)` to talk to AWS Bedrock
+  * multi-device continuity
+  * long-term persistence
+  * serverless scalability
 
-3. **New `call_bedrock` function**
+### 🌐 Frontend Interface
 
-   * Handles Bedrock’s message format and wraps the `converse` API
+* Clean HTML/CSS/JS chat UI
+* Makes POST requests to Lambda/API Gateway
+* Displays streaming or static model responses
+* Integrates seamlessly with CloudFront deployment
 
-4. **Model selection via environment variable**
+### ☁️ AWS Serverless Deployment
 
-   * `BEDROCK_MODEL_ID` allows easy switching between Nova models without code changes
+From Stages 06–11, the project transitions fully into AWS infrastructure:
 
-5. **Improved error handling**
+* IAM configuration
+* Lambda deployment (via `deploy.py`)
+* S3 memory bucket
+* API Gateway routing
+* CloudFront global CDN for frontend
+* Strict CORS and environment configuration
+* Fully serverless with zero ongoing maintenance
 
-   * Clean mapping of Bedrock errors (e.g. `ValidationException`, `AccessDeniedException`) into FastAPI `HTTPException` responses
+### 🔄 Model Transition (Stage 12)
 
-## Part 3: Deploy to Lambda
+* Removed OpenAI dependencies
+* Introduced Bedrock Runtime (`boto3.client("bedrock-runtime")`)
+* New message formatting via Bedrock’s `converse` API
+* Updated environment variables (`BEDROCK_MODEL_ID`, region)
+* Renewed IAM permissions for Bedrock access
+* Significant backend overhaul to unify OpenAI-like behaviour with Bedrock capabilities
 
-### Step 1: Update Lambda Environment Variables
+This stage transformed the project into a **fully AWS-native Digital Twin**.
 
-1. In the AWS Console, go to **Lambda**
+## 💻 **Local Development**
 
-2. Click on your `twin-api` function
+Install backend dependencies:
 
-3. Open **Configuration** → **Environment variables**
+```bash
+pip install -r backend/requirements.txt
+```
 
-4. Click **Edit**
-
-5. Add these new variables:
-
-   * Key: `DEFAULT_AWS_REGION` | Value: `us-east-1` (or your chosen region)
-   * Key: `BEDROCK_MODEL_ID` | Value: `amazon.nova-lite-v1:0`
-
-     Remember: this model ID might need a `us.` or `eu.` prefix if you see a Bedrock error.
-
-6. You can now remove `OPENAI_API_KEY` since the OpenAI API is no longer used
-
-7. Click **Save**
-
-### Model ID Options
-
-You can set `BEDROCK_MODEL_ID` to one of the following (with a possible `us.` or `eu.` prefix, as described in the Heads Up at the top of the material):
-
-* `amazon.nova-micro-v1:0` – fastest and cheapest
-* `amazon.nova-lite-v1:0` – balanced (recommended)
-* `amazon.nova-pro-v1:0` – most capable but more expensive
-
-### Step 2: Add Bedrock Permissions to Lambda
-
-Your Lambda execution role must also have permission to call Bedrock:
-
-1. In the Lambda console, open **Configuration** → **Permissions**
-2. Click the execution role name to open it in IAM
-3. Click **Add permissions** → **Attach policies**
-4. Search for and select: `AmazonBedrockFullAccess`
-5. Click **Add permissions**
-
-### Step 3: Rebuild and Deploy Lambda Package
-
-Because `requirements.txt` has changed, rebuild the deployment package with the updated dependencies:
+Run the backend locally:
 
 ```bash
 cd backend
-uv add -r requirements.txt
-uv run deploy.py
+uvicorn server:app --reload
 ```
 
-This will create a fresh `lambda-deployment.zip` that includes the Bedrock dependencies.
+Open the local frontend:
 
-### Step 4: Upload to Lambda via S3 (Recommended)
-
-Uploading via S3 is more reliable, especially for larger packages or slower connections.
-
-**Mac/Linux:**
-
-```bash
-# Load environment variables
-source .env
-
-# Navigate to backend
-cd backend
-
-# Create a unique S3 bucket name for deployment
-DEPLOY_BUCKET="twin-deploy-$(date +%s)"
-
-# Create the bucket
-aws s3 mb s3://$DEPLOY_BUCKET --region $DEFAULT_AWS_REGION
-
-# Upload your zip file to S3
-aws s3 cp lambda-deployment.zip s3://$DEPLOY_BUCKET/ --region $DEFAULT_AWS_REGION
-
-# Update Lambda function from S3
-aws lambda update-function-code \
-    --function-name twin-api \
-    --s3-bucket $DEPLOY_BUCKET \
-    --s3-key lambda-deployment.zip \
-    --region $DEFAULT_AWS_REGION
-
-# Clean up: delete the temporary bucket
-aws s3 rm s3://$DEPLOY_BUCKET/lambda-deployment.zip
-aws s3 rb s3://$DEPLOY_BUCKET
+```
+frontend/index.html
 ```
 
-**Windows (PowerShell), starting in the project root:**
+Memory will be stored under `backend/memory/` unless `USE_S3=true`.
 
-```powershell
-# Load environment variables from .env
-Get-Content .env | ForEach-Object {
-    if ($_ -match '^([^=]+)=(.*)$') {
-        [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
-    }
-}
+## 🧪 **Local Testing (No Memory → Memory)**
 
-# Navigate to backend
-cd backend
+Stage 03 tests the system without memory.
+Stage 04 tests full memory, verifying:
 
-# Create a unique S3 bucket name for deployment
-$timestamp = Get-Date -Format "yyyyMMddHHmmss"
-$deployBucket = "twin-deploy-$timestamp"
+* message persistence
+* session continuity
+* long-term recall
 
-# Create the bucket
-aws s3 mb s3://$deployBucket --region $env:DEFAULT_AWS_REGION
+This staged transition ensures correctness before deploying to AWS.
 
-# Upload your zip file to S3
-aws s3 cp lambda-deployment.zip s3://$deployBucket/ --region $env:DEFAULT_AWS_REGION
+## 🚀 **Deploying to AWS**
 
-# Update Lambda function from S3
-aws lambda update-function-code `
-    --function-name twin-api `
-    --s3-bucket $deployBucket `
-    --s3-key lambda-deployment.zip `
-    --region $env:DEFAULT_AWS_REGION
+Your deployment flow mirrors best-practice LLMOps pipelines:
 
-# Clean up: delete the temporary bucket
-aws s3 rm s3://$deployBucket/lambda-deployment.zip
-aws s3 rb s3://$deployBucket
-```
+1. Package the backend using **deploy.py**
+2. Upload via AWS CLI or S3
+3. Configure Lambda environment variables
+4. Set up API Gateway routes
+5. Create memory and deployment buckets in S3
+6. Deploy the frontend to a static S3 bucket
+7. Add CloudFront distribution
+8. Test end-to-end through CloudFront
 
-**Alternative: Direct Upload (fast, stable connections only)**
+The Bedrock migration reuses the same pipeline with updated backend logic.
 
-```bash
-aws lambda update-function-code \
-    --function-name twin-api \
-    --zip-file fileb://lambda-deployment.zip \
-    --region $DEFAULT_AWS_REGION
-```
+## 🎉 **Project Complete**
 
-The S3 method is recommended because:
+You have successfully built, enhanced, tested, and deployed a fully serverless **LLMOps Digital Twin** across:
 
-* S3 uploads can resume if interrupted
-* Lambda pulls directly from S3 (faster than pushing via CLI)
-* Plays nicer with VPNs and corporate firewalls
-* More reliable for packages over ~10 MB
+* Context engineering
+* Persistent memory
+* Bedrock inference
+* FastAPI backend
+* Frontend UI
+* S3 memory and static storage
+* Lambda + API Gateway
+* CloudFront global CDN
 
-Wait for the update to complete. In the Lambda console, you should see `"LastUpdateStatus": "Successful"`.
-
-### Step 5: Test the Lambda Function
-
-1. In the Lambda console, open the **Test** tab
-2. Use your existing `HealthCheck` test event
-3. Click **Test**
-4. Check the response — it should now include the Bedrock model in the body:
-
-```json
-{
-  "statusCode": 200,
-  "body": "{\"status\":\"healthy\",\"use_s3\":true,\"bedrock_model\":\"amazon.nova-lite-v1:0\"}"
-}
-```
-
-<img src="img/aws_bedrock/test_success.png" width="100%">
-
-## Part 4: Test Your Bedrock-Powered Twin
-
-### Step 1: Test via API Gateway
-
-Test the health endpoint directly in your browser:
-
-```text
-https://YOUR-API-ID.execute-api.us-east-1.amazonaws.com/health
-```
-
-You should see JSON that includes the `bedrock_model` field, confirming that the Bedrock backend is wired in correctly.
-
-### Step 2: Test via CloudFront
-
-1. Open your CloudFront URL:
-
-   ```text
-   https://YOUR-DISTRIBUTION.cloudfront.net
-   ```
-
-2. Start a conversation with your Digital Twin
-
-3. Confirm that messages are being sent and responses are returned successfully
-
-4. Verify that responses look sensible and that memory continues to work as expected
-
-## Part 5: CloudWatch Monitoring
-
-Now that your Twin is powered by Bedrock, set up monitoring to track usage, latency, and cost.
-
-### Step 1: View Lambda Metrics
-
-1. In the AWS Console, go to **CloudWatch**
-2. Click **Metrics** → **All metrics**
-3. Click **Lambda** → **By Function Name**
-4. Select your `twin-api` function
-5. Inspect these key metrics:
-
-   * ✅ **Invocations**
-   * ✅ **Duration**
-   * ✅ **Errors**
-   * ✅ **Throttles**
-
-### Step 2: View Bedrock Metrics
-
-1. In CloudWatch Metrics, click **AWS/Bedrock**
-2. Choose **By Model Id**
-3. Select your Nova model
-4. Monitor:
-
-   * **InvocationLatency** – model response time
-   * **Invocations** – number of Bedrock calls
-   * **InputTokenCount** – tokens sent to the model
-   * **OutputTokenCount** – tokens generated by the model
-
-### Step 3: View Lambda Logs
-
-1. In CloudWatch, click **Log groups**
-
-2. Open:
-
-   ```text
-   /aws/lambda/twin-api
-   ```
-
-3. Click on the latest log stream
-
-4. You will see:
-
-   * Each Lambda invocation
-   * Any Bedrock-related log messages
-   * Errors and stack traces
-   * Execution times
-
-### Step 4: Create a CloudWatch Dashboard (Optional)
-
-Build a simple dashboard to watch everything at a glance:
-
-1. In CloudWatch, go to **Dashboards** → **Create dashboard**
-2. Name it: `twin-monitoring`
-3. Add widgets:
-
-**Widget 1: Lambda Invocations**
-
-* Type: Line
-* Metric: Lambda → `twin-api` → `Invocations`
-* Statistic: Sum
-* Period: 5 minutes
-
-**Widget 2: Lambda Duration**
-
-* Type: Line
-* Metric: Lambda → `twin-api` → `Duration`
-* Statistic: Average
-* Period: 5 minutes
-
-**Widget 3: Lambda Errors**
-
-* Type: Number
-* Metric: Lambda → `twin-api` → `Errors`
-* Statistic: Sum
-* Period: 1 hour
-
-**Widget 4: Bedrock Invocations**
-
-* Type: Line
-* Metric: AWS/Bedrock → your model → `Invocations`
-* Statistic: Sum
-* Period: 5 minutes
-
-### Step 5: Set Up Cost Monitoring
-
-Monitor how much your Twin costs to run:
-
-1. Open **AWS Cost Explorer** in the console
-2. Click **Cost Explorer** → **Launch Cost Explorer**
-3. Filter by:
-
-   * Service: **Bedrock**
-   * Time range: **Last 7 days**
-4. Review how your Bedrock usage is accumulating cost over time
-
-### Step 6: Create a Billing Alert (Recommended)
-
-1. In the AWS Console, search for **Billing**
-2. Click **Budgets** → **Create budget**
-3. Choose **Cost budget**
-4. Configure:
-
-   * Budget name: `twin-budget`
-   * Monthly budget: e.g. `$10` (or your preferred limit)
-   * Alert threshold: 80% of the budget
-5. Enter your email for notifications
-6. Click **Create budget**
-
-You now have a **Bedrock-powered Digital Twin** with:
-
-* Correct IAM + Lambda permissions
-* Updated backend code and dependencies
-* Verified API Gateway + CloudFront integration
-* Basic observability and cost controls via CloudWatch and Billing
+This project now represents a fully AWS-native, production-ready Digital Twin that mirrors your personality, background, and communication style — with persistent memory and world-class model inference.
